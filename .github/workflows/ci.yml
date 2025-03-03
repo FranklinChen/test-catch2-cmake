@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt update -y
+        sudo apt install -y catch2
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install catch2
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        vcpkg install catch2
+
+    - name: Set up CMake
+      uses: lukka/get-cmake@latest
+
+    - name: Configure with CMake (Ubuntu/macOS)
+      if: runner.os != 'Windows'
+      run: cmake -S . -B build
+
+    - name: Configure with CMake (Windows)
+      if: runner.os == 'Windows'
+      run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+    - name: Build
+      run: cmake --build build 
+
+    - name: Run tests
+      run: ctest --test-dir build
