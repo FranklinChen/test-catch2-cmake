@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-uint32_t factorial( uint32_t number ) {
+auto factorial(uint32_t number) -> uint32_t {
     return number <= 1 ? number : factorial(number-1) * number;
 }
 
