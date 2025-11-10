@@ -8,44 +8,130 @@ on:
 
 jobs:
   build:
+    name: ${{ matrix.os }} - ${{ matrix.compiler }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # Ubuntu with GCC 15 (latest)
+          - os: ubuntu-24.04
+            compiler: gcc-15
+            cc: gcc-15
+            cxx: g++-15
+
+          # Ubuntu with Clang 21 (latest)
+          - os: ubuntu-24.04
+            compiler: clang-21
+            cc: clang-21
+            cxx: clang++-21
+
+          # macOS with Homebrew GCC 15 (NOT Apple Clang)
+          - os: macos-latest
+            compiler: gcc-15
+            cc: gcc-15
+            cxx: g++-15
+
+          # macOS with Homebrew Clang/LLVM 21 (NOT Apple Clang)
+          - os: macos-latest
+            compiler: llvm-21
+            cc: /opt/homebrew/opt/llvm/bin/clang
+            cxx: /opt/homebrew/opt/llvm/bin/clang++
+
+          # Windows with MSVC latest
+          - os: windows-latest
+            compiler: msvc
+            cc: cl
+            cxx: cl
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
-    - name: Install dependencies (Ubuntu)
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt update -y
-        sudo apt install -y catch2
-
-    - name: Install dependencies (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        brew install catch2
-
-    - name: Install dependencies (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        vcpkg install catch2
-
-    - name: Set up CMake
+    # ========================================================================
+    # Install latest CMake (4.1.2 or higher)
+    # ========================================================================
+    - name: Install latest CMake
       uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: "~4.1.0"
 
-    - name: Configure with CMake (Ubuntu/macOS)
+    # ========================================================================
+    # Install Compilers using setup-cpp (cross-platform)
+    # ========================================================================
+    - name: Install GCC 15
+      if: matrix.compiler == 'gcc-15'
+      uses: aminya/setup-cpp@v1
+      with:
+        compiler: gcc
+        version: 15
+
+    - name: Install Clang 21
+      if: matrix.compiler == 'clang-21' || matrix.compiler == 'llvm-21'
+      uses: aminya/setup-cpp@v1
+      with:
+        compiler: llvm
+        version: 21
+
+    # ========================================================================
+    # Install Catch2 (platform-specific)
+    # ========================================================================
+    - name: Install Catch2 (Ubuntu)
+      if: runner.os == 'Linux'
+      run: sudo apt update && sudo apt install -y catch2
+
+    - name: Install Catch2 (macOS)
+      if: runner.os == 'macOS'
+      run: brew install catch2
+
+    - name: Install Catch2 (Windows)
+      if: runner.os == 'Windows'
+      run: vcpkg install catch2
+
+    # ========================================================================
+    # Verify compiler versions
+    # ========================================================================
+    - name: Verify compiler versions
       if: runner.os != 'Windows'
-      run: cmake -S . -B build
+      run: |
+        echo "=== Compiler Information ==="
+        ${{ matrix.cc }} --version
+        ${{ matrix.cxx }} --version
+        cmake --version
+        echo "Expected: GCC 15.2 or Clang 21.1.5"
+        echo "Expected: CMake 4.1.2+"
+
+    # ========================================================================
+    # Configure with CMake
+    # ========================================================================
+    - name: Configure with CMake (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        cmake -S . -B build \
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+          -DCMAKE_BUILD_TYPE=Release
 
     - name: Configure with CMake (Windows)
       if: runner.os == 'Windows'
-      run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+      run: |
+        cmake -S . -B build `
+          -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+          -DCMAKE_BUILD_TYPE=Release
 
+    # ========================================================================
+    # Build and Test
+    # ========================================================================
     - name: Build
-      run: cmake --build build 
+      run: cmake --build build --config Release
 
     - name: Run tests
-      run: ctest --test-dir build
+      run: ctest --test-dir build --output-on-failure --build-config Release
+
+    # ========================================================================
+    # Display C++23 feature test
+    # ========================================================================
+    - name: Show C++23 features in action
+      run: |
+        echo "=== Running C++23 Feature Tests ==="
+        ./build/tests "[cpp23]" || true

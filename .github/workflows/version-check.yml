@@ -1,0 +1,151 @@
+name: Version Check
+
+# Run monthly on the 1st at 9 AM UTC, or manually
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of every month at 9 AM UTC
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  check-versions:
+    name: Check for Latest Compiler Versions
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Check for latest versions
+      id: check
+      run: |
+        chmod +x scripts/check-latest-versions.sh
+        ./scripts/check-latest-versions.sh | tee version-check.log
+
+        # Source the generated versions file
+        source scripts/latest-versions.txt
+
+        # Set outputs for later steps
+        echo "cmake_version=$CMAKE_VERSION" >> $GITHUB_OUTPUT
+        echo "gcc_version=$GCC_VERSION" >> $GITHUB_OUTPUT
+        echo "clang_version=$CLANG_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Check current versions in repo
+      id: current
+      run: |
+        # Extract current CMake version from CMakeLists.txt
+        CURRENT_CMAKE=$(grep -oP 'cmake_minimum_required\(VERSION \K[0-9]+\.[0-9]+\.\.\.[0-9]+\.[0-9]+' CMakeLists.txt | cut -d. -f1-3)
+        echo "current_cmake=$CURRENT_CMAKE" >> $GITHUB_OUTPUT
+
+        # Extract current GCC version from CMakeLists.txt comment
+        CURRENT_GCC=$(grep -oP '# GCC: \K[0-9]+\.[0-9]+' CMakeLists.txt)
+        echo "current_gcc=$CURRENT_GCC" >> $GITHUB_OUTPUT
+
+        # Extract current Clang version from CMakeLists.txt comment
+        CURRENT_CLANG=$(grep -oP '# Clang: \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
+        echo "current_clang=$CURRENT_CLANG" >> $GITHUB_OUTPUT
+
+        echo "Current versions:"
+        echo "  CMake: $CURRENT_CMAKE"
+        echo "  GCC: $CURRENT_GCC"
+        echo "  Clang: $CURRENT_CLANG"
+
+    - name: Compare versions
+      id: compare
+      run: |
+        NEEDS_UPDATE=false
+
+        echo "Comparing versions..."
+        echo "CMake:  ${{ steps.current.outputs.current_cmake }} -> ${{ steps.check.outputs.cmake_version }}"
+        echo "GCC:    ${{ steps.current.outputs.current_gcc }} -> ${{ steps.check.outputs.gcc_version }}"
+        echo "Clang:  ${{ steps.current.outputs.current_clang }} -> ${{ steps.check.outputs.clang_version }}"
+
+        if [ "${{ steps.current.outputs.current_cmake }}" != "${{ steps.check.outputs.cmake_version }}" ] || \
+           [ "${{ steps.current.outputs.current_gcc }}" != "${{ steps.check.outputs.gcc_version }}" ] || \
+           [ "${{ steps.current.outputs.current_clang }}" != "${{ steps.check.outputs.clang_version }}" ]; then
+          NEEDS_UPDATE=true
+          echo "✓ New versions available!"
+        else
+          echo "✓ All versions are up to date"
+        fi
+
+        echo "needs_update=$NEEDS_UPDATE" >> $GITHUB_OUTPUT
+
+    - name: Create issue for version updates
+      if: steps.compare.outputs.needs_update == 'true'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const cmake_current = '${{ steps.current.outputs.current_cmake }}';
+          const cmake_latest = '${{ steps.check.outputs.cmake_version }}';
+          const gcc_current = '${{ steps.current.outputs.current_gcc }}';
+          const gcc_latest = '${{ steps.check.outputs.gcc_version }}';
+          const clang_current = '${{ steps.current.outputs.current_clang }}';
+          const clang_latest = '${{ steps.check.outputs.clang_version }}';
+
+          let body = '## New Compiler Versions Available\n\n';
+          body += 'The automated version checker has detected new versions:\n\n';
+          body += '| Component | Current | Latest |\n';
+          body += '|-----------|---------|--------|\n';
+          body += `| CMake | ${cmake_current} | ${cmake_latest} |\n`;
+          body += `| GCC | ${gcc_current} | ${gcc_latest} |\n`;
+          body += `| Clang/LLVM | ${clang_current} | ${clang_latest} |\n`;
+          body += '\n### How to Update\n\n';
+          body += '1. Run the version check script:\n';
+          body += '   ```bash\n';
+          body += '   ./scripts/check-latest-versions.sh\n';
+          body += '   ```\n\n';
+          body += '2. Review and apply updates:\n';
+          body += '   ```bash\n';
+          body += '   ./scripts/update-versions.sh\n';
+          body += '   ```\n\n';
+          body += '3. Test the changes:\n';
+          body += '   ```bash\n';
+          body += '   cmake -S . -B build\n';
+          body += '   cmake --build build\n';
+          body += '   ctest --test-dir build\n';
+          body += '   ```\n\n';
+          body += '4. Commit and push:\n';
+          body += '   ```bash\n';
+          body += '   git add -A\n';
+          body += '   git commit -m "Update to latest compiler versions"\n';
+          body += '   git push\n';
+          body += '   ```\n\n';
+          body += '---\n';
+          body += `*Automated check run on ${new Date().toISOString()}*`;
+
+          // Check if issue already exists
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: 'version-update'
+          });
+
+          if (issues.data.length === 0) {
+            // Create new issue
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '📦 New Compiler Versions Available',
+              body: body,
+              labels: ['version-update', 'enhancement']
+            });
+            console.log('Created new issue for version updates');
+          } else {
+            // Update existing issue
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issues.data[0].number,
+              body: body
+            });
+            console.log('Updated existing issue #' + issues.data[0].number);
+          }
+
+    - name: Upload version check log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: version-check-log
+        path: version-check.log
+        retention-days: 30
