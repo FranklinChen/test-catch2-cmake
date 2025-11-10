@@ -112,7 +112,7 @@ The script will show you the versions and ask for confirmation before making cha
 ### Automated Updates
 
 The repository includes a GitHub Actions workflow (`.github/workflows/version-check.yml`) that:
-- Runs weekly on Mondays at 9 AM UTC
+- Runs monthly on the 1st at 9 AM UTC
 - Can be triggered manually from GitHub Actions UI
 - Checks for new versions
 - Creates/updates a GitHub issue if updates are available

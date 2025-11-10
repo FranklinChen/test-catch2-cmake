@@ -20,7 +20,11 @@ This directory contains automated workflows for continuous integration and maint
 **Actions Used:**
 - `actions/checkout@v5` - Check out repository
 - `lukka/get-cmake@latest` - Install CMake 4.1+
-- `aminya/setup-cpp@v1` - Install compilers (GCC/Clang/LLVM)
+
+**Compiler Installation:**
+- **Ubuntu**: Platform-native package managers (ubuntu-toolchain-r PPA for GCC, LLVM APT for Clang)
+- **macOS**: Homebrew (`gcc@15`, `llvm@21`)
+- **Windows**: Built-in MSVC (no additional installation needed)
 
 **Features:**
 - Verifies compiler versions
@@ -55,7 +59,6 @@ This directory contains automated workflows for continuous integration and maint
 | actions/github-script | v8 | Uses Node.js 24 |
 | actions/upload-artifact | v4 | Latest stable, v3 deprecated |
 | lukka/get-cmake | latest | Always gets latest CMake |
-| aminya/setup-cpp | v1 | Cross-platform compiler setup |
 
 ## Updating Actions
 
@@ -81,7 +84,7 @@ Check for new versions:
 - **actions/checkout**: https://github.com/actions/checkout/releases
 - **actions/github-script**: https://github.com/actions/github-script/releases
 - **actions/upload-artifact**: https://github.com/actions/upload-artifact/releases
-- **aminya/setup-cpp**: https://github.com/aminya/setup-cpp/releases
+- **lukka/get-cmake**: https://github.com/lukka/get-cmake/releases
 
 Update version in workflow files, test, and commit.
 
@@ -90,9 +93,16 @@ Update version in workflow files, test, and commit.
 ### CI Failures
 
 **Compiler not found:**
-- Check `aminya/setup-cpp` version compatibility
-- Verify compiler version is available on the platform
-- Check runner OS version compatibility
+- **Ubuntu**: Verify PPA repository is accessible and compiler package exists
+  - Check ubuntu-toolchain-r PPA: `ppa:ubuntu-toolchain-r/test`
+  - Check LLVM APT repository: `http://apt.llvm.org/noble/`
+- **macOS**: Verify Homebrew formula exists (`brew info gcc@15` or `brew info llvm@21`)
+- **Windows**: MSVC should be pre-installed on GitHub-hosted runners
+
+**Package installation failures:**
+- **Ubuntu**: Repository key or GPG signature issues (update wget command in workflow)
+- **macOS**: Homebrew formula deprecated or renamed (check `brew search gcc` or `brew search llvm`)
+- Network connectivity to package repositories
 
 **CMake version mismatch:**
 - Verify `lukka/get-cmake` is pulling correct version

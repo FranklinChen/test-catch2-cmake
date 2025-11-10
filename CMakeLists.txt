@@ -9,9 +9,9 @@ project(TestCatch2CMake
     LANGUAGES CXX
 )
 
-# Document latest verified compiler versions (as of 2025)
-# GCC: 15.2 (released April 2025)
-# Clang: 21.1.5 (released November 2025)
+# Document latest verified compiler versions (as of November 2025)
+# GCC: 14.x (Ubuntu), 15.x (macOS) - latest available per platform
+# Clang: 21.x (uses libc++ on Linux for C++23 compatibility)
 # CMake: 4.1.2 stable, 4.2.0-rc2 available
 # C++23: Finalized (ISO/IEC 14882:2024)
 # C++26: In development, expected finalization March 2026
@@ -19,8 +19,16 @@ project(TestCatch2CMake
 # Enable testing
 enable_testing()
 
-# Find Catch2 v3 or higher
-find_package(Catch2 3 REQUIRED)
+# Fetch Catch2 from GitHub using FetchContent (CMake 3.11+ feature)
+# This ensures consistent versions across all platforms and compilers
+include(FetchContent)
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.7.1
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(Catch2)
 
 # Create test executable
 add_executable(tests test.cpp)

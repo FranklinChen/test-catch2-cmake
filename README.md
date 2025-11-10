@@ -10,7 +10,7 @@ This project serves as a future-proof demonstration of:
 
 - **CMake 4+**: Modern build system features (currently 4.1.2+)
 - **C++23**: Latest finalized C++ standard (ISO/IEC 14882:2024)
-- **Latest Compilers**: GCC 15.2 and Clang/LLVM 21.1.5
+- **Latest Compilers**: GCC 14 (Ubuntu), GCC 15.2 (macOS), and Clang/LLVM 21.1.5
 - **Cross-Platform**: Ubuntu, macOS (with Homebrew compilers), Windows
 - **Modern Testing**: Catch2 v3 with automatic test discovery
 
@@ -19,7 +19,7 @@ This project serves as a future-proof demonstration of:
 | Component | Version | Release Date |
 |-----------|---------|--------------|
 | CMake | 4.1.2 (stable), 4.2.0-rc2 | Sep/Oct 2025 |
-| GCC | 15.2 | April 2025 |
+| GCC | 14.x (Ubuntu), 15.2 (macOS) | Ubuntu: official repos, macOS: Homebrew |
 | Clang/LLVM | 21.1.5 | November 2025 |
 | C++23 | ISO/IEC 14882:2024 | Finalized Feb 2023 |
 | C++26 | In Development | Expected March 2026 |
@@ -44,29 +44,32 @@ This project serves as a future-proof demonstration of:
 
 **Ubuntu:**
 ```bash
-sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 sudo apt update
-sudo apt install -y gcc-15 g++-15 catch2 cmake
+sudo apt install -y gcc-14 g++-14 cmake
 ```
 
 **macOS (using Homebrew, NOT Apple Clang):**
 ```bash
-brew install gcc@15 llvm@21 catch2 cmake
+# Install compilers and CMake
+brew install gcc@15 llvm@21 cmake
 ```
 
 **Windows:**
 ```powershell
-vcpkg install catch2
-# Install CMake from https://cmake.org/download/
+# Install CMake from https://cmake.org/download/ or via winget
+winget install Kitware.CMake
 ```
+
+**Note:** Catch2 is automatically downloaded and built by CMake via FetchContent - no manual installation required!
 
 ### Build Commands
 
 ```bash
 # Configure with specific compiler (Unix)
+# Ubuntu uses gcc-14, macOS uses gcc-15
 cmake -S . -B build \
-  -DCMAKE_C_COMPILER=gcc-15 \
-  -DCMAKE_CXX_COMPILER=g++-15 \
+  -DCMAKE_C_COMPILER=gcc-14 \
+  -DCMAKE_CXX_COMPILER=g++-14 \
   -DCMAKE_BUILD_TYPE=Release
 
 # Or with Clang
@@ -91,11 +94,13 @@ ctest --test-dir build --output-on-failure
 
 The GitHub Actions workflow tests across multiple configurations:
 
-- **Ubuntu 24.04**: GCC 15, Clang 21
+- **Ubuntu 24.04**: GCC 14, Clang 21
 - **macOS Latest**: Homebrew GCC 15, Homebrew LLVM 21 (NOT Apple Clang)
 - **Windows Latest**: MSVC latest
 
 All builds use CMake 4.1+ and verify compiler versions to ensure future-proofing.
+
+**Compiler Installation:** The CI uses platform-native package managers (Ubuntu main repos for GCC 14, LLVM APT repository for Clang, Homebrew for macOS) for direct control and reliability, matching the local development setup documented above.
 
 ## Why These Choices?
 
@@ -103,7 +108,7 @@ All builds use CMake 4.1+ and verify compiler versions to ensure future-proofing
 
 **C++23**: Latest finalized standard with practical features like `std::expected`, `std::print`, and deducing this.
 
-**Latest Compilers**: GCC 15 and Clang 21 provide the best C++23 support and early C++26 features.
+**Latest Compilers**: GCC 14+ and Clang 21 provide excellent C++23 support and early C++26 features.
 
 **Homebrew on macOS**: Apple Clang lags behind in C++ standard support; Homebrew provides true GCC and latest LLVM/Clang.
 
@@ -125,6 +130,7 @@ See `test.cpp` for detailed demonstrations of:
 - Compiler warnings are enabled (`-Wall -Wextra -Wpedantic`)
 - Build type should be set to `Release` for optimal performance
 - Tests are tagged by feature category for selective execution
+- **macOS ABI Compatibility**: Catch2 must be built from source with the same compiler. Homebrew's catch2 is built with Apple Clang (libc++), which is ABI-incompatible with GCC's libstdc++
 
 ## Maintenance & Version Updates
 

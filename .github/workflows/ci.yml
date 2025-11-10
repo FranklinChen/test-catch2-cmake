@@ -14,11 +14,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Ubuntu with GCC 15 (latest)
+          # Ubuntu with GCC 14 (latest available on Ubuntu 24.04)
           - os: ubuntu-24.04
-            compiler: gcc-15
-            cc: gcc-15
-            cxx: g++-15
+            compiler: gcc-14
+            cc: gcc-14
+            cxx: g++-14
 
           # Ubuntu with Clang 21 (latest)
           - os: ubuntu-24.04
@@ -57,37 +57,34 @@ jobs:
         cmakeVersion: "~4.1.0"
 
     # ========================================================================
-    # Install Compilers using setup-cpp (cross-platform)
+    # Install Compilers
     # ========================================================================
-    - name: Install GCC 15
-      if: matrix.compiler == 'gcc-15'
-      uses: aminya/setup-cpp@v1
-      with:
-        compiler: gcc
-        version: 15
+    # Ubuntu: GCC 14 available in main repos, use LLVM repo for Clang
+    - name: Install GCC 14 (Ubuntu)
+      if: matrix.compiler == 'gcc-14' && runner.os == 'Linux'
+      run: |
+        sudo apt update
+        sudo apt install -y gcc-14 g++-14
 
-    - name: Install Clang 21
-      if: matrix.compiler == 'clang-21' || matrix.compiler == 'llvm-21'
-      uses: aminya/setup-cpp@v1
-      with:
-        compiler: llvm
-        version: 21
+    - name: Install Clang 21 (Ubuntu)
+      if: matrix.compiler == 'clang-21' && runner.os == 'Linux'
+      run: |
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" -y
+        sudo apt update
+        sudo apt install -y clang-21 libc++-21-dev libc++abi-21-dev
+
+    # macOS: Use Homebrew for both GCC and LLVM
+    - name: Install GCC 15 (macOS)
+      if: matrix.compiler == 'gcc-15' && runner.os == 'macOS'
+      run: brew install gcc@15
+
+    - name: Install LLVM 21 (macOS)
+      if: matrix.compiler == 'llvm-21' && runner.os == 'macOS'
+      run: brew install llvm@21
 
     # ========================================================================
-    # Install Catch2 (platform-specific)
-    # ========================================================================
-    - name: Install Catch2 (Ubuntu)
-      if: runner.os == 'Linux'
-      run: sudo apt update && sudo apt install -y catch2
-
-    - name: Install Catch2 (macOS)
-      if: runner.os == 'macOS'
-      run: brew install catch2
-
-    - name: Install Catch2 (Windows)
-      if: runner.os == 'Windows'
-      run: vcpkg install catch2
-
+    # Note: Catch2 is fetched automatically via CMake FetchContent
     # ========================================================================
     # Verify compiler versions
     # ========================================================================
@@ -98,7 +95,7 @@ jobs:
         ${{ matrix.cc }} --version
         ${{ matrix.cxx }} --version
         cmake --version
-        echo "Expected: GCC 15.2 or Clang 21.1.5"
+        echo "Expected: GCC 14.x (Ubuntu) / 15.x (macOS) or Clang 21.x"
         echo "Expected: CMake 4.1.2+"
 
     # ========================================================================
@@ -107,6 +104,11 @@ jobs:
     - name: Configure with CMake (Unix)
       if: runner.os != 'Windows'
       run: |
+        # Set compiler flags for Clang to use libc++ on Linux
+        if [[ "${{ matrix.compiler }}" == clang-* ]] && [[ "${{ runner.os }}" == "Linux" ]]; then
+          export CXXFLAGS="-stdlib=libc++"
+          export LDFLAGS="-stdlib=libc++ -lc++abi"
+        fi
         cmake -S . -B build \
           -DCMAKE_C_COMPILER=${{ matrix.cc }} \
           -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
@@ -116,7 +118,6 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         cmake -S . -B build `
-          -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
           -DCMAKE_BUILD_TYPE=Release
 
     # ========================================================================
@@ -131,7 +132,15 @@ jobs:
     # ========================================================================
     # Display C++23 feature test
     # ========================================================================
-    - name: Show C++23 features in action
+    - name: Show C++23 features in action (Unix)
+      if: runner.os != 'Windows'
       run: |
         echo "=== Running C++23 Feature Tests ==="
         ./build/tests "[cpp23]" || true
+
+    - name: Show C++23 features in action (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        echo "=== Running C++23 Feature Tests ==="
+        .\build\Release\tests.exe "[cpp23]"
+      continue-on-error: true

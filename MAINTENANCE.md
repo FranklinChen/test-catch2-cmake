@@ -123,27 +123,43 @@ cmake -S . -B build -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@21/bin/clang++
 
 ## GitHub Actions Setup
 
-The CI workflow uses `aminya/setup-cpp` action for cross-platform compiler installation:
+The CI workflow uses platform-native package managers for compiler installation:
 
+**Ubuntu:**
 ```yaml
-- name: Install GCC 15
-  uses: aminya/setup-cpp@v1
-  with:
-    compiler: gcc
-    version: 15
+- name: Install GCC 15 (Ubuntu)
+  if: matrix.compiler == 'gcc-15' && runner.os == 'Linux'
+  run: |
+    sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+    sudo apt update
+    sudo apt install -y gcc-15 g++-15
+
+- name: Install Clang 21 (Ubuntu)
+  if: matrix.compiler == 'clang-21' && runner.os == 'Linux'
+  run: |
+    wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+    sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" -y
+    sudo apt update
+    sudo apt install -y clang-21
+```
+
+**macOS:**
+```yaml
+- name: Install GCC 15 (macOS)
+  if: matrix.compiler == 'gcc-15' && runner.os == 'macOS'
+  run: brew install gcc@15
+
+- name: Install LLVM 21 (macOS)
+  if: matrix.compiler == 'llvm-21' && runner.os == 'macOS'
+  run: brew install llvm@21
 ```
 
 **Benefits:**
-- Works across Ubuntu, macOS, and Windows
-- Handles package manager differences automatically
-- Supports specific version pinning
-- Manages compiler paths and environment variables
-- More reliable than manual installation scripts
-
-**Supported compilers:**
-- GCC (Linux, macOS via Homebrew, Windows via MinGW)
-- LLVM/Clang (all platforms)
-- MSVC (Windows)
+- Direct control over compiler installation
+- Uses official upstream repositories (ubuntu-toolchain-r, LLVM APT, Homebrew)
+- More reliable for latest compiler versions
+- Matches documented local development setup
+- No third-party dependencies
 
 ## Version Sources
 
