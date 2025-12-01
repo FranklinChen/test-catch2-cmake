@@ -37,11 +37,11 @@ jobs:
         echo "current_cmake=$CURRENT_CMAKE" >> $GITHUB_OUTPUT
 
         # Extract current GCC version from CMakeLists.txt comment
-        CURRENT_GCC=$(grep -oP '# GCC: \K[0-9]+\.[0-9]+' CMakeLists.txt)
+        CURRENT_GCC=$(grep -oP '# GCC: \K[0-9]+(\.[0-9x]+)*' CMakeLists.txt)
         echo "current_gcc=$CURRENT_GCC" >> $GITHUB_OUTPUT
 
         # Extract current Clang version from CMakeLists.txt comment
-        CURRENT_CLANG=$(grep -oP '# Clang: \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
+        CURRENT_CLANG=$(grep -oP '# Clang: \K[0-9]+(\.[0-9x]+)*' CMakeLists.txt)
         echo "current_clang=$CURRENT_CLANG" >> $GITHUB_OUTPUT
 
         echo "Current versions:"
